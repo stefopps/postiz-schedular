@@ -1,19 +1,21 @@
 // state-server.js — Persistent auto-save for arc-viz takes
-// + Postiz sync bridge: when a post is marked "ready" with a linkedinTake,
-//   it auto-pushes to Postiz API.
+// + Waterfall posting: platform-cascade posts (LI → FB → IG → YT)
+//   direct API posting — no Postiz needed.
 // Run: node state-server.js
 // Endpoints:
-//   POST /save          — arc-viz auto-saves state
-//   GET  /latest        — most recent save
-//   GET  /list          — all snapshots
-//   GET  /ready         — posts marked ready with linkedinTake
-//   GET  /sync-status   — which posts have been synced to Postiz
-//   POST /upload-image  — drag-drop image upload
+//   POST /save           — arc-viz auto-saves state
+//   GET  /latest         — most recent save
+//   GET  /list           — all snapshots
+//   GET  /ready          — posts marked ready with linkedinTake
+//   GET  /sync-status    — which posts have been synced (legacy)
+//   POST /upload-image   — drag-drop image upload
+//   POST /post-platform  — post directly to LI/FB via direct-poster.js
 
 const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const poster = require('./direct-poster');
 
 const SAVE_DIR = path.join('C:', 'Users', 'steve', 'MeWorld', 'game', 'linkedin', 'state-autosave');
 const LATEST_FILE = path.join(SAVE_DIR, 'latest.json');
@@ -88,7 +90,7 @@ function parseArcPosts() {
   }
 }
 
-// Convert "Thu Jul 2" → "2026-07-02T13:00:00.000Z"  (9 AM ET = 13:00 UTC)
+// Convert "Thu Jul 2" → "2026-07-02T11:00:00.000Z"  (7 AM ET = 11:00 UTC)
 function parseArcDate(dateStr) {
   const months = { Jan: '01', Feb: '02', Mar: '03', Apr: '04', May: '05', Jun: '06',
                    Jul: '07', Aug: '08', Sep: '09', Oct: '10', Nov: '11', Dec: '12' };
@@ -97,9 +99,8 @@ function parseArcDate(dateStr) {
   const month = months[parts[1]];
   const day = String(parseInt(parts[2])).padStart(2, '0');
   if (!month || !day) return null;
-  // Assume 2026 for Jul-Dec 2026 posts
   const year = (month >= '07') ? '2026' : '2026';
-  return `${year}-${month}-${day}T13:00:00.000Z`;
+  return `${year}-${month}-${day}T11:00:00.000Z`;
 }
 
 // ── Postiz API ──
@@ -262,7 +263,7 @@ async function postizCreatePost(dateIso, bodyText, mediaArray) {
 async function syncToPostiz(state) {
   const posts = parseArcPosts();
   const statuses = state.statuses || {};
-  const linkedinTake = state.linkedinTake || {};
+  const linkedinReadyTakeIdx = state.linkedinReadyTakeIdx || {};
   const synced = state._syncedToPostiz || {};
   
   const toSync = [];
@@ -273,8 +274,10 @@ async function syncToPostiz(state) {
     if (synced[idxStr]) continue;          // already pushed
     if (syncingNow.has(idxStr)) continue;  // in flight
     
-    const take = linkedinTake[idxStr];
-    if (!take) continue;  // no LI take selected
+    const takeVal = linkedinReadyTakeIdx[idxStr];
+    // linkedinReadyTakeIdx format: undefined=not set, null=original body, number=index into speechTakes
+    if (takeVal === undefined) continue;  // no LI take selected
+    if (!state.speechTakes && takeVal !== null) continue;  // no takes data
     
     const post = posts[idx];
     if (!post) {
@@ -288,16 +291,19 @@ async function syncToPostiz(state) {
       continue;
     }
     
-    // Determine the body text based on linkedinTake selection
-    let bodyText = post.body;  // default: original
-    if (take === 'spoken' && state.speechTakes && state.speechTakes[idxStr]) {
+    // Determine the body text based on linkedinReadyTakeIdx selection
+    let bodyText = post.body;  // default: original body
+    if (takeVal === null) {
+      bodyText = post.body;  // explicit: original
+    } else if (typeof takeVal === 'number') {
       const takes = state.speechTakes[idxStr];
-      const spokenTake = takes.find(t => t.type === 'spoken' && t.text);
-      if (spokenTake) bodyText = spokenTake.text;
-    } else if (take === 'fused' && state.speechTakes && state.speechTakes[idxStr]) {
-      const takes = state.speechTakes[idxStr];
-      const fusedTake = takes.find(t => t.type === 'fused' && t.text);
-      if (fusedTake) bodyText = fusedTake.text;
+      if (takes && takeVal < takes.length) {
+        const selectedTake = takes[takeVal];
+        bodyText = selectedTake.transcript || post.body;
+        console.log(`[Sync]   Post ${idx}: using take #${takeVal} (${selectedTake.type || 'raw'})`);
+      } else {
+        console.log(`[Sync]   Post ${idx}: LI index ${takeVal} out of range (${takes ? takes.length : 0} takes) — falling back to original`);
+      }
     }
     
     toSync.push({ idx: idxStr, post, isoDate, bodyText });
@@ -341,6 +347,19 @@ async function syncToPostiz(state) {
         date: item.isoDate,
         hasMedia: mediaArray.length > 0
       };
+
+      // Also schedule directly via LinkedIn's native API (machine-off safety net)
+      try {
+        console.log(`[Sync]   Scheduling directly via LinkedIn for ${item.isoDate}...`);
+        const liResult = await poster.post({
+          text: item.bodyText,
+          dateIso: item.isoDate,
+          platforms: ['linkedin']
+        });
+        console.log(`[Sync]   LinkedIn schedule: ${JSON.stringify(liResult)}`);
+      } catch (liErr) {
+        console.error(`[Sync]   LinkedIn direct schedule failed (Postiz is the fallback): ${liErr.message}`);
+      }
       
     } catch (e) {
       console.error(`[Sync]   FAILED post ${item.idx}: ${e.message}`);
@@ -504,6 +523,34 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ── /update-posts — write reordered posts back to arc-viz.html ──
+  if (req.method === 'POST' && req.url === '/update-posts') {
+    const chunks = [];
+    req.on('data', c => chunks.push(c));
+    req.on('end', () => {
+      try {
+        const body = JSON.parse(Buffer.concat(chunks).toString());
+        const postsJson = JSON.stringify(body.posts, null, 2);
+        const html = fs.readFileSync(ARC_HTML, 'utf-8');
+        // Replace const posts = [...] with new array
+        const newHtml = html.replace(/const posts = \[[\s\S]*?\];/, `const posts = ${postsJson};`);
+        if (newHtml !== html) {
+          fs.writeFileSync(ARC_HTML, newHtml, 'utf-8');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true, count: body.posts.length }));
+          console.log(`[Posts] Updated ${ARC_HTML} with ${body.posts.length} reordered posts`);
+        } else {
+          res.writeHead(400);
+          res.end(JSON.stringify({ ok: false, error: 'could not find posts array in HTML' }));
+        }
+      } catch (e) {
+        res.writeHead(500);
+        res.end(JSON.stringify({ ok: false, error: e.message }));
+      }
+    });
+    return;
+  }
+
   // ── /sync-now — manually trigger sync of all pending ready+LI posts ──
   if (req.method === 'POST' && req.url === '/sync-now') {
     try {
@@ -589,6 +636,61 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ── /post-platform — post directly to LI/FB via direct-poster.js ──
+  if (req.method === 'POST' && req.url === '/post-platform') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const data = JSON.parse(body);
+        const { index, platform, text, image, video, dateIso } = data;
+        
+        console.log(`[Post] /post-platform called: platform=${platform} index=${index}`);
+        
+        // Resolve media paths relative to the linkedin directory
+        const LINKEDIN_DIR = path.join('C:', 'Users', 'steve', 'MeWorld', 'game', 'linkedin');
+        let imagePath = null;
+        let videoPath = null;
+        
+        if (image && typeof image === 'string') {
+          const fullPath = path.join(LINKEDIN_DIR, image);
+          if (fs.existsSync(fullPath)) imagePath = fullPath;
+        }
+        if (video && typeof video === 'string') {
+          const fullPath = path.join(LINKEDIN_DIR, video);
+          if (fs.existsSync(fullPath)) videoPath = fullPath;
+        }
+        
+        if (!text) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'no text provided' }));
+          return;
+        }
+        
+        let result;
+        if (platform === 'linkedin') {
+          result = await poster.postToLinkedIn(text, null);
+        } else if (platform === 'facebook') {
+          result = await poster.postToFacebook(text, imagePath, videoPath);
+        } else {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: `unsupported platform: ${platform}` }));
+          return;
+        }
+        
+        console.log(`[Post] Result: ${JSON.stringify(result)}`);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: result.ok, platform, result }));
+        
+      } catch (e) {
+        console.error('[Post] Error:', e.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: e.message }));
+      }
+    });
+    return;
+  }
+
   res.writeHead(404);
   res.end('Not found');
 });
@@ -597,7 +699,9 @@ const PORT = 9801;
 server.listen(PORT, '127.0.0.1', () => {
   console.log(`State server listening on http://127.0.0.1:${PORT}`);
   console.log(`Saves to: ${SAVE_DIR}`);
-  console.log(`Postiz bridge: ${POSTIZ_API}`);
+  console.log(`Waterfall direct posting: LI + FB (via direct-poster.js)`);
+  console.log(`LI token: ${poster.status().linkedin.tokenValid ? 'valid' : 'MISSING — run get-linkedin-token.js'}`);
+  console.log(`FB page: ${poster.status().facebook.pageName || 'Immersa'}`);
 
   // Startup: check for unsynced ready+LI posts
   try {

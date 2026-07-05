@@ -1,0 +1,37 @@
+name: Daily LinkedIn Post
+
+on:
+  schedule:
+    - cron: '0 11 * * 1-5'  # 11:00 UTC = 7 AM ET, Mon-Fri
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout MeWorld (arc-viz.html)
+        uses: actions/checkout@v4
+        with:
+          repository: stefopps/MeWorld
+          path: MeWorld
+          ref: main
+
+      - name: Checkout Schedular (post-today.js)
+        uses: actions/checkout@v4
+        with:
+          path: Schedular
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Post to LinkedIn
+        working-directory: Schedular
+        env:
+          LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
+          LINKEDIN_PERSON_URN: ${{ secrets.LINKEDIN_PERSON_URN }}
+          ARC_VIZ_PATH: ${{ github.workspace }}/MeWorld/game/linkedin/arc-viz.html
+        run: node post-today.js
