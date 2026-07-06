@@ -14,9 +14,48 @@ const LI_HASHTAGS = '\n\n#MedEd #ClinicalSimulation #MedicalEducation #AIinMedic
 // ── Parse arc-viz.html to get posts array ──
 function parsePosts() {
   const html = fs.readFileSync(ARC_VIZ, 'utf-8');
-  const match = html.match(/const posts = \[([\s\S]*?)\];/);
-  if (!match) throw new Error('Could not find posts array in arc-viz.html');
-  const posts = eval('[' + match[1] + ']');
+  const startMarker = 'const posts = [';
+  const startIdx = html.indexOf(startMarker);
+  if (startIdx === -1) throw new Error('Could not find "const posts = [" in arc-viz.html');
+  
+  // Find matching "]" by balancing brackets (respecting strings)
+  let depth = 0, inString = false, inTemplate = false, escapeNext = false, endIdx = -1;
+  for (let i = startIdx + startMarker.length; i < html.length; i++) {
+    const ch = html[i];
+    if (escapeNext) { escapeNext = false; continue; }
+    if (ch === '\\') { escapeNext = true; continue; }
+    if (!inTemplate && ch === '"') { inString = !inString; continue; }
+    if (!inString && ch === '`') { inTemplate = !inTemplate; continue; }
+    if (inString || inTemplate) continue;
+    if (ch === '[') { depth++; continue; }
+    if (ch === ']') {
+      if (depth === 0) { endIdx = i; break; }
+      depth--;
+    }
+  }
+  if (endIdx === -1) throw new Error('Could not find matching ] for posts array');
+  
+  let postsCode = html.substring(startIdx + startMarker.length, endIdx);
+  
+  // Fix literal newlines in quoted strings — convert to \n
+  // Strategy: walk through and replace newlines ONLY inside quoted strings
+  let fixed = '';
+  let inStr = false, inTpl = false, esc = false;
+  for (let i = 0; i < postsCode.length; i++) {
+    const ch = postsCode[i];
+    if (esc) { fixed += ch; esc = false; continue; }
+    if (ch === '\\') { fixed += ch; esc = true; continue; }
+    if (!inTpl && ch === '"') { inStr = !inStr; fixed += ch; continue; }
+    if (!inStr && ch === '`') { inTpl = !inTpl; fixed += ch; continue; }
+    if ((inStr || inTpl) && (ch === '\n' || ch === '\r')) {
+      // Replace literal newline with \n or skip \r
+      if (ch === '\n') fixed += '\\n';
+      continue;
+    }
+    fixed += ch;
+  }
+  
+  const posts = new Function('return [' + fixed + ']')();
   return posts;
 }
 
