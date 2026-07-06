@@ -5,6 +5,10 @@ on:
     - cron: '0 11 * * 1-5'  # 11:00 UTC = 7 AM ET, Mon-Fri
   workflow_dispatch:  # Allow manual trigger
 
+# Need write permission to push posted-dates.json back
+permissions:
+  contents: write
+
 jobs:
   post:
     runs-on: ubuntu-latest
@@ -18,10 +22,11 @@ jobs:
           path: MeWorld
           ref: main
 
-      - name: Checkout Schedular (post-today.js)
+      - name: Checkout Schedular (post-today.js + posted-dates.json)
         uses: actions/checkout@v4
         with:
           path: Schedular
+          # Default: checkout the same repo with write access
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -29,9 +34,24 @@ jobs:
           node-version: '22'
 
       - name: Post to LinkedIn
+        id: post
         working-directory: Schedular
         env:
           LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
           LINKEDIN_PERSON_URN: ${{ secrets.LINKEDIN_PERSON_URN }}
           ARC_VIZ_PATH: ${{ github.workspace }}/MeWorld/game/linkedin/arc-viz.html
         run: node post-today.js
+
+      - name: Commit posted-dates.json (if updated)
+        if: success()
+        working-directory: Schedular
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add posted-dates.json
+          if git diff --cached --quiet; then
+            echo "No changes to posted-dates.json"
+          else
+            git commit -m "mark posted-date: $(date +'%a %b %d')"
+            git push
+          fi

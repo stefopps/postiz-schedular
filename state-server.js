@@ -429,8 +429,8 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true, file: path.basename(snapshotFile), takes: state._takesCount }));
 
-        // Async: check for newly-ready posts and push to Postiz
-        syncToPostiz(state).catch(e => console.error('[Sync] Background sync error:', e.message));
+        // Postiz sync disabled — GitHub Actions is the sole publisher now
+        // syncToPostiz(state).catch(e => console.error('[Sync] Background sync error:', e.message));
         
       } catch (e) {
         console.error('Save error:', e.message);
@@ -551,27 +551,10 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // ── /sync-now — manually trigger sync of all pending ready+LI posts ──
+  // ── /sync-now — DISABLED (GitHub Actions is the publisher) ──
   if (req.method === 'POST' && req.url === '/sync-now') {
-    try {
-      if (!fs.existsSync(LATEST_FILE)) {
-        res.writeHead(404);
-        res.end(JSON.stringify({ ok: false, error: 'no saved state yet' }));
-        return;
-      }
-      const state = JSON.parse(fs.readFileSync(LATEST_FILE, 'utf-8'));
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ ok: true, message: 'sync started' }));
-
-      syncToPostiz(state).then(() => {
-        console.log('[Sync] Manual sync complete');
-      }).catch(e => {
-        console.error('[Sync] Manual sync error:', e.message);
-      });
-    } catch (e) {
-      res.writeHead(500);
-      res.end(JSON.stringify({ ok: false, error: e.message }));
-    }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, message: 'sync disabled — GitHub Actions handles publishing' }));
     return;
   }
 
@@ -703,17 +686,17 @@ server.listen(PORT, '127.0.0.1', () => {
   console.log(`LI token: ${poster.status().linkedin.tokenValid ? 'valid' : 'MISSING — run get-linkedin-token.js'}`);
   console.log(`FB page: ${poster.status().facebook.pageName || 'Immersa'}`);
 
-  // Startup: check for unsynced ready+LI posts
-  try {
-    if (fs.existsSync(LATEST_FILE)) {
-      const state = JSON.parse(fs.readFileSync(LATEST_FILE, 'utf-8'));
-      setTimeout(() => {
-        syncToPostiz(state).then(() => {
-          console.log('[Sync] Startup sync complete');
-        }).catch(e => {
-          console.error('[Sync] Startup sync error:', e.message);
-        });
-      }, 2000);
-    }
-  } catch (e) { /* ok */ }
+  // Postiz sync disabled — GitHub Actions is the sole publisher now
+  // try {
+  //   if (fs.existsSync(LATEST_FILE)) {
+  //     const state = JSON.parse(fs.readFileSync(LATEST_FILE, 'utf-8'));
+  //     setTimeout(() => {
+  //       syncToPostiz(state).then(() => {
+  //         console.log('[Sync] Startup sync complete');
+  //       }).catch(e => {
+  //         console.error('[Sync] Startup sync error:', e.message);
+  //       });
+  //     }, 2000);
+  //   }
+  // } catch (e) { /* ok */ }
 });

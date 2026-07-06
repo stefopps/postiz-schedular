@@ -1,5 +1,5 @@
 // post-today.js — GitHub Actions: find today's post in arc-viz.html and post to LinkedIn
-// Runs daily at 7 AM ET (11:00 UTC), Mon-Fri
+// Runs daily at 7 AM ET (11:00 UTC), Mon-Fri. Idempotent via posted-dates.json.
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
@@ -8,6 +8,7 @@ const path = require('path');
 const ARC_VIZ = process.env.ARC_VIZ_PATH || path.join(__dirname, 'arc-viz.html');
 const LI_TOKEN = process.env.LINKEDIN_ACCESS_TOKEN;
 const LI_URN = process.env.LINKEDIN_PERSON_URN;
+const POSTED_DATES_FILE = path.join(__dirname, 'posted-dates.json');
 const LI_HASHTAGS = '\n\n#MedEd #ClinicalSimulation #MedicalEducation #AIinMedicine #Immersa #FutureOfMedicine';
 
 // ── Parse arc-viz.html to get posts array ──
@@ -15,8 +16,6 @@ function parsePosts() {
   const html = fs.readFileSync(ARC_VIZ, 'utf-8');
   const match = html.match(/const posts = \[([\s\S]*?)\];/);
   if (!match) throw new Error('Could not find posts array in arc-viz.html');
-  
-  // Evaluate the posts array (trusted source)
   const posts = eval('[' + match[1] + ']');
   return posts;
 }
@@ -70,6 +69,31 @@ async function postToLinkedIn(text) {
   }
 }
 
+// ── Idempotency: check posted-dates.json ──
+function alreadyPosted(edtDateStr) {
+  try {
+    if (!fs.existsSync(POSTED_DATES_FILE)) return false;
+    const posted = JSON.parse(fs.readFileSync(POSTED_DATES_FILE, 'utf-8'));
+    return Array.isArray(posted) && posted.includes(edtDateStr);
+  } catch (e) {
+    return false;
+  }
+}
+
+function markPosted(edtDateStr) {
+  let posted = [];
+  try {
+    if (fs.existsSync(POSTED_DATES_FILE)) {
+      posted = JSON.parse(fs.readFileSync(POSTED_DATES_FILE, 'utf-8'));
+    }
+  } catch (e) { /* start fresh */ }
+  if (!Array.isArray(posted)) posted = [];
+  if (!posted.includes(edtDateStr)) {
+    posted.push(edtDateStr);
+    fs.writeFileSync(POSTED_DATES_FILE, JSON.stringify(posted, null, 2) + '\n', 'utf-8');
+  }
+}
+
 // ── Main ──
 async function main() {
   if (!LI_TOKEN) throw new Error('LINKEDIN_ACCESS_TOKEN not set');
@@ -79,28 +103,29 @@ async function main() {
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
   const now = new Date();
-  const todayStr = `${DAYS[now.getUTCDay()]} ${MONTHS[now.getUTCMonth()]} ${now.getUTCDate()}`;
-  // Note: posts are in EDT (UTC-4), so for 7 AM ET (11 UTC), 
-  // the day-of-week in UTC might differ from EDT on early AM runs.
-  // We use the post's stored date string which is in EDT.
-  // For safety, also try EDT date:
-  const edtNow = new Date(now.getTime() - 4 * 3600000); // EDT is UTC-4
+  const edtNow = new Date(now.getTime() - 4 * 3600000);
   const edtTodayStr = `${DAYS[edtNow.getUTCDay()]} ${MONTHS[edtNow.getUTCMonth()]} ${edtNow.getUTCDate()}`;
 
-  console.log(`[PostToday] UTC now: ${now.toISOString()}`);
   console.log(`[PostToday] EDT date: ${edtTodayStr}`);
-  console.log(`[PostToday] UTC date: ${todayStr}`);
+
+  // ── Idempotency check ──
+  if (alreadyPosted(edtTodayStr)) {
+    console.log(`[PostToday] ${edtTodayStr} already posted — skipping`);
+    process.exit(0);
+  }
 
   const posts = parsePosts();
   console.log(`[PostToday] Loaded ${posts.length} posts`);
 
-  // Find today's post
   let todayPost = posts.find(p => p.date === edtTodayStr);
-  if (!todayPost) todayPost = posts.find(p => p.date === todayStr);
+  // Fallback: also try UTC-based date string
+  if (!todayPost) {
+    const utcTodayStr = `${DAYS[now.getUTCDay()]} ${MONTHS[now.getUTCMonth()]} ${now.getUTCDate()}`;
+    todayPost = posts.find(p => p.date === utcTodayStr);
+  }
   
   if (!todayPost) {
-    console.log(`[PostToday] No post found for ${edtTodayStr} or ${todayStr} — nothing to post`);
-    console.log('[PostToday] Available dates:');
+    console.log(`[PostToday] No post found for ${edtTodayStr} — nothing to post`);
     posts.forEach(p => console.log(`  ${p.date}: ${p.act}`));
     process.exit(0);
   }
@@ -109,6 +134,12 @@ async function main() {
   console.log(`[PostToday] Body length: ${todayPost.body.length} chars`);
 
   const result = await postToLinkedIn(todayPost.body);
+  
+  if (result.ok) {
+    markPosted(edtTodayStr);
+    console.log(`[PostToday] Marked ${edtTodayStr} as posted`);
+  }
+  
   console.log('[PostToday] Result:', JSON.stringify(result));
   process.exit(result.ok ? 0 : 1);
 }
