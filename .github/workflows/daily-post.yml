@@ -2,7 +2,8 @@ name: Daily LinkedIn Post
 
 on:
   schedule:
-    - cron: '0 11 * * 1-5'  # 11:00 UTC = 7 AM ET, Mon-Fri
+    - cron: '0 11 * * 1-5'  # 11:00 UTC = 7:00 AM ET, Mon-Fri — PRIMARY
+                             # Postiz backup fires at 7:15 AM ET as safety net
   workflow_dispatch:  # Allow manual trigger
 
 # Need write permission to push posted-dates.json back

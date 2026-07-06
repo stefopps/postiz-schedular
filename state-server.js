@@ -682,11 +682,40 @@ const PORT = 9801;
 server.listen(PORT, '127.0.0.1', () => {
   console.log(`State server listening on http://127.0.0.1:${PORT}`);
   console.log(`Saves to: ${SAVE_DIR}`);
-  console.log(`Waterfall direct posting: LI + FB (via direct-poster.js)`);
   console.log(`LI token: ${poster.status().linkedin.tokenValid ? 'valid' : 'MISSING — run get-linkedin-token.js'}`);
-  console.log(`FB page: ${poster.status().facebook.pageName || 'Immersa'}`);
 
-  // Postiz sync disabled — GitHub Actions is the sole publisher now
+  // ── Daily backup poster: 7:15 AM ET (11:15 UTC), Mon-Fri ──
+  // Runs 15 min after GitHub Actions. Guarded by posted-dates.json.
+  const backup = require('./post-backup.js');
+  
+  function scheduleNextBackup() {
+    const now = new Date();
+    const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 11, 15, 0));
+    
+    // If today's 11:15 UTC already passed, schedule for tomorrow
+    if (next <= now) next.setUTCDate(next.getUTCDate() + 1);
+    
+    // Skip weekends — Mon=1, Fri=5
+    const day = next.getUTCDay();
+    if (day === 0) next.setUTCDate(next.getUTCDate() + 1); // Sun → Mon
+    if (day === 6) next.setUTCDate(next.getUTCDate() + 2); // Sat → Mon
+    
+    const delayMs = next.getTime() - now.getTime();
+    console.log(`[Backup] Next check: ${next.toISOString()} (in ${Math.round(delayMs/60000)} min)`);
+    
+    setTimeout(async () => {
+      try {
+        await backup.runBackup();
+      } catch (e) {
+        console.error('[Backup] Error:', e.message);
+      }
+      scheduleNextBackup(); // Schedule tomorrow's
+    }, delayMs);
+  }
+  
+  scheduleNextBackup();
+
+  // Postiz sync disabled — GitHub Actions is the primary, state-server backup at 7:15 AM
   // try {
   //   if (fs.existsSync(LATEST_FILE)) {
   //     const state = JSON.parse(fs.readFileSync(LATEST_FILE, 'utf-8'));
