@@ -620,6 +620,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   // ── /post-platform — post directly to LI/FB via direct-poster.js ──
+  // GUARDED: checks posted-dates.json before allowing the post through
   if (req.method === 'POST' && req.url === '/post-platform') {
     let body = '';
     req.on('data', chunk => body += chunk);
@@ -629,6 +630,21 @@ const server = http.createServer(async (req, res) => {
         const { index, platform, text, image, video, dateIso } = data;
         
         console.log(`[Post] /post-platform called: platform=${platform} index=${index}`);
+        
+        // ── Pre-flight guard: check posted-dates.json ──
+        if (platform === 'linkedin') {
+          try {
+            const already = await poster.checkAlreadyPosted('auto'); // actual date check
+            if (already) {
+              console.log('[Post] BLOCKED by guard — already posted today');
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ ok: false, skipped: true, reason: 'already posted today (check posted-dates.json)' }));
+              return;
+            }
+          } catch (guardErr) {
+            console.log(`[Post] Guard check failed: ${guardErr.message} — proceeding anyway`);
+          }
+        }
         
         // Resolve media paths relative to the linkedin directory
         const LINKEDIN_DIR = path.join('C:', 'Users', 'steve', 'MeWorld', 'game', 'linkedin');

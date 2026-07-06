@@ -332,10 +332,60 @@ async function scheduleToLinkedIn(text, imageUrl, scheduledTimeIso) {
 
 // ── Main post function called by state-server ──
 
+// Check the shared posted-dates.json on GitHub to prevent double-posting
+// GitHub Actions publishes at 7:00 AM ET and commits the date. If we run at 7:15 AM,
+// this guard catches it.
+const POSTED_DATES_URL = 'https://raw.githubusercontent.com/stefopps/postiz-schedular/master/posted-dates.json';
+async function checkAlreadyPosted(edtDateStr) {
+  // 'auto' = figure out today's EDT date
+  if (edtDateStr === 'auto') {
+    const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const d = new Date(Date.now() - 4 * 3600000); // EDT
+    edtDateStr = `${DAYS[d.getUTCDay()]} ${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}`;
+  }
+  
+  try {
+    console.log(`[Guard] Checking posted-dates.json for ${edtDateStr}...`);
+    const res = await httpsGet('raw.githubusercontent.com', `/stefopps/postiz-schedular/master/posted-dates.json`, {});
+    if (res.status !== 200) {
+      console.log(`[Guard] Could not fetch posted-dates.json (HTTP ${res.status}) — proceeding`);
+      return false;
+    }
+    const posted = JSON.parse(res.body);
+    const found = Array.isArray(posted) && posted.includes(edtDateStr);
+    if (found) {
+      console.log(`[Guard] ${edtDateStr} already posted by GitHub Actions — SKIPPING`);
+    } else {
+      console.log(`[Guard] ${edtDateStr} not in posted-dates.json — safe to post`);
+    }
+    return found;
+  } catch (e) {
+    console.log(`[Guard] Error checking posted-dates: ${e.message} — proceeding`);
+    return false;
+  }
+}
+
 async function post(postData) {
   // postData: { text, imagePath, videoPath, dateIso, postNow?, platforms: ['linkedin', 'facebook'] }
   const results = [];
-  
+
+  // ── Pre-flight dedup check ──
+  if (postData.dateIso && !postData.postNow) {
+    const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const d = new Date(postData.dateIso);
+    // EDT date (UTC-4)
+    const edtDate = new Date(d.getTime() - 4 * 3600000);
+    const edtDateStr = `${DAYS[edtDate.getUTCDay()]} ${MONTHS[edtDate.getUTCMonth()]} ${edtDate.getUTCDate()}`;
+    
+    const alreadyUp = await checkAlreadyPosted(edtDateStr);
+    if (alreadyUp) {
+      console.log(`[Post] DUPLICATE PREVENTED — ${edtDateStr} already on LinkedIn`);
+      return [{ platform: 'linkedin', ok: false, skipped: true, reason: 'already posted by GitHub Actions' }];
+    }
+  }
+
   const platforms = postData.platforms || ['linkedin', 'facebook'];
   const imageUrl = postData.imagePath ? 
     `http://localhost:4200/api/uploads/${path.basename(postData.imagePath)}` : null;
@@ -383,4 +433,4 @@ function status() {
   };
 }
 
-module.exports = { post, postToLinkedIn, scheduleToLinkedIn, postToFacebook, scheduleToFacebook, status, fbGetPageToken, liInit };
+module.exports = { post, postToLinkedIn, scheduleToLinkedIn, postToFacebook, scheduleToFacebook, checkAlreadyPosted, status, fbGetPageToken, liInit };
