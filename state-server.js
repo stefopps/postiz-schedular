@@ -16,6 +16,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const poster = require('./direct-poster');
+const sandbox = require('./sandbox-publisher');
 
 const SAVE_DIR = path.join('C:', 'Users', 'steve', 'MeWorld', 'game', 'linkedin', 'state-autosave');
 const LATEST_FILE = path.join(SAVE_DIR, 'latest.json');
@@ -551,6 +552,51 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ── /sandbox/mode — GET current mode ──
+  if (req.method === 'GET' && req.url === '/sandbox/mode') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ mode: sandbox.getMode() }));
+    return;
+  }
+
+  // ── /sandbox/mode — POST toggle mode ──
+  if (req.method === 'POST' && req.url === '/sandbox/mode') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', () => {
+      try {
+        const { mode } = JSON.parse(body);
+        const newMode = sandbox.setMode(mode);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, mode: newMode }));
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: e.message }));
+      }
+    });
+    return;
+  }
+
+  // ── /sandbox/posts — GET all sandboxed posts ──
+  if (req.method === 'GET' && req.url === '/sandbox/posts') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(sandbox.listSandboxedPosts()));
+    return;
+  }
+
+  // ── /sandbox/preview — serve the preview HTML page ──
+  if (req.method === 'GET' && req.url === '/sandbox/preview') {
+    const previewPath = path.join(__dirname, 'sandbox-preview.html');
+    if (fs.existsSync(previewPath)) {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(fs.readFileSync(previewPath, 'utf-8'));
+    } else {
+      res.writeHead(404);
+      res.end('preview page not found');
+    }
+    return;
+  }
+
   // ── /sync-now — DISABLED (GitHub Actions is the publisher) ──
   if (req.method === 'POST' && req.url === '/sync-now') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -668,7 +714,16 @@ const server = http.createServer(async (req, res) => {
         
         let result;
         if (platform === 'linkedin') {
-          result = await poster.postToLinkedIn(text, null);
+          // ── Sandbox gate ──
+          if (!sandbox.isLive()) {
+            console.log('[Post] SANDBOX MODE — saving locally');
+            result = await sandbox.publishToSandbox(text, {
+              platform: 'linkedin',
+              source: `arc-viz:/post-platform (post ${index})`
+            });
+          } else {
+            result = await poster.postToLinkedIn(text, null);
+          }
         } else if (platform === 'facebook') {
           result = await poster.postToFacebook(text, imagePath, videoPath);
         } else {
@@ -699,9 +754,11 @@ server.listen(PORT, '127.0.0.1', () => {
   console.log(`State server listening on http://127.0.0.1:${PORT}`);
   console.log(`Saves to: ${SAVE_DIR}`);
   console.log(`LI token: ${poster.status().linkedin.tokenValid ? 'valid' : 'MISSING — run get-linkedin-token.js'}`);
+  console.log(`Sandbox mode: ${sandbox.getMode().toUpperCase()} — preview at http://127.0.0.1:${PORT}/sandbox/preview`);
 
   // ── Daily backup poster: 7:15 AM ET (11:15 UTC), Mon-Fri ──
   // Runs 15 min after GitHub Actions. Guarded by posted-dates.json.
+  // Posts go through sandbox gate — only hits LinkedIn in "live" mode.
   const backup = require('./post-backup.js');
   
   function scheduleNextBackup() {

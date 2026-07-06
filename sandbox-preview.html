@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LinkedIn Preview — Sandbox</title>
+<style>
+  :root {
+    --li-bg: #f4f2ee;
+    --li-card: #ffffff;
+    --li-text: rgba(0,0,0,0.9);
+    --li-text-secondary: rgba(0,0,0,0.6);
+    --li-link: #0a66c2;
+    --li-border: rgba(0,0,0,0.08);
+    --li-action: rgba(0,0,0,0.6);
+    --li-blue: #0a66c2;
+    --li-hashtag: #0a66c2;
+    --badge-sandbox: #d4a843;
+    --badge-live: #057642;
+    --card-radius: 8px;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    background: var(--li-bg);
+    font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Fira Sans", Ubuntu, Oxygen, "Oxygen Sans", Cantarell, "Droid Sans", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Lucida Grande", Helvetica, Arial, sans-serif;
+    color: var(--li-text);
+    line-height: 1.5;
+  }
+
+  /* ── Top bar ── */
+  .topbar {
+    background: #fff;
+    border-bottom: 1px solid var(--li-border);
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .topbar-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .topbar-logo {
+    background: var(--li-blue);
+    color: #fff;
+    font-weight: 700;
+    font-size: 14px;
+    width: 34px;
+    height: 34px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .topbar-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--li-text-secondary);
+  }
+
+  /* ── Mode toggle ── */
+  .mode-switch {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #f3f2ef;
+    border-radius: 20px;
+    padding: 3px;
+  }
+  .mode-btn {
+    border: none;
+    background: transparent;
+    padding: 6px 16px;
+    border-radius: 17px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--li-text-secondary);
+  }
+  .mode-btn.active {
+    background: #fff;
+    color: #000;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+  }
+  .mode-btn.sandbox.active { color: var(--badge-sandbox); }
+  .mode-btn.live.active { color: var(--badge-live); }
+
+  /* ── Feed ── */
+  .feed {
+    max-width: 560px;
+    margin: 0 auto;
+    padding: 16px 0;
+  }
+
+  /* ── Post card ── */
+  .card {
+    background: var(--li-card);
+    border-radius: var(--card-radius);
+    border: 1px solid var(--li-border);
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+  .card-header {
+    padding: 12px 16px 4px;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .card-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-weight: 700;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  .card-meta {
+    flex: 1;
+  }
+  .card-name {
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .card-handle {
+    font-size: 12px;
+    color: var(--li-text-secondary);
+  }
+  .card-time {
+    font-size: 12px;
+    color: var(--li-text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .card-time svg { width: 12px; height: 12px; }
+
+  .card-body {
+    padding: 4px 16px 12px;
+    font-size: 14px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+  .card-body .hashtag { color: var(--li-hashtag); font-weight: 500; }
+
+  .card-footer {
+    padding: 0 16px 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .card-badge.sandbox { background: #fef3c7; color: #92400e; }
+  .card-badge.live { background: #d1fae5; color: #065f46; }
+
+  .card-actions {
+    padding: 0 16px 8px;
+    display: flex;
+    justify-content: space-between;
+    border-top: 1px solid var(--li-border);
+    padding-top: 8px;
+    margin-top: 4px;
+  }
+  .action {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--li-action);
+    padding: 6px 8px;
+    border-radius: 4px;
+    cursor: default;
+    background: none;
+    border: none;
+    font-family: inherit;
+  }
+
+  .card-source {
+    font-size: 11px;
+    color: var(--li-text-secondary);
+    padding: 0 16px 8px;
+    font-style: italic;
+  }
+
+  /* ── Empty state ── */
+  .empty {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--li-text-secondary);
+  }
+  .empty h3 {
+    font-size: 18px;
+    margin: 0 0 8px;
+    color: var(--li-text);
+  }
+  .empty p { margin: 0; font-size: 14px; }
+
+  /* ── Refresh bar ── */
+  .refresh-bar {
+    text-align: center;
+    padding: 8px;
+    font-size: 12px;
+    color: var(--li-text-secondary);
+  }
+  .refresh-bar span {
+    cursor: pointer;
+    color: var(--li-link);
+    font-weight: 600;
+  }
+  .refresh-bar span:hover { text-decoration: underline; }
+
+  /* ── Responsive ── */
+  @media (max-width: 600px) {
+    .feed { max-width: 100%; padding: 8px; }
+    .topbar { padding: 10px 16px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="topbar-logo">in</div>
+    <span class="topbar-title">Sandbox Preview</span>
+  </div>
+  <div class="mode-switch" id="mode-switch">
+    <button class="mode-btn sandbox" data-mode="sandbox" onclick="setMode('sandbox')">Sandbox</button>
+    <button class="mode-btn live" data-mode="live" onclick="setMode('live')">Live</button>
+  </div>
+</div>
+
+<div class="refresh-bar">
+  Auto-refreshes every 15s · <span onclick="loadPosts()">Refresh now</span>
+</div>
+
+<div class="feed" id="feed">
+  <div class="empty"><h3>Loading...</h3></div>
+</div>
+
+<script>
+const API = 'http://127.0.0.1:9801';
+
+async function loadMode() {
+  try {
+    const r = await fetch(API + '/sandbox/mode');
+    const d = await r.json();
+    document.querySelectorAll('.mode-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.mode === d.mode);
+    });
+    return d.mode;
+  } catch(e) { return 'sandbox'; }
+}
+
+async function setMode(mode) {
+  try {
+    await fetch(API + '/sandbox/mode', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode })
+    });
+    await loadMode();
+    await loadPosts();
+  } catch(e) { alert('Failed: ' + e.message); }
+}
+
+function renderHashtags(text) {
+  return text.replace(/#(\w+)/g, '<span class="hashtag">#$1</span>');
+}
+
+async function loadPosts() {
+  const feed = document.getElementById('feed');
+  try {
+    const mode = await loadMode();
+    const r = await fetch(API + '/sandbox/posts');
+    const posts = await r.json();
+
+    if (!posts.length) {
+      feed.innerHTML = `<div class="empty">
+        <h3>No sandboxed posts yet</h3>
+        <p>Posts from arc-viz (GH Actions & local backup) will appear here for review before going live.</p>
+        <p style="margin-top:12px;color:#666">Current mode: <strong>${mode === 'sandbox' ? 'Sandbox' : 'Live'}</strong></p>
+      </div>`;
+      return;
+    }
+
+    feed.innerHTML = posts.map((p, i) => `
+      <div class="card">
+        <div class="card-header">
+          <div class="card-avatar">SO</div>
+          <div class="card-meta">
+            <div class="card-name">Steven Oppong</div>
+            <div class="card-handle">Lead 3D Artist at Talking Images</div>
+            <div class="card-time">
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 110 14A7 7 0 018 1zm0 12.5a5.5 5.5 0 100-11 5.5 5.5 0 000 11zm.5-5.5H12V9H7V4h1.5v4z"/></svg>
+              ${p.posted ? new Date(p.posted).toLocaleString() : '--'}
+            </div>
+          </div>
+        </div>
+        <div class="card-body">${renderHashtags(escapeHtml(p.text))}</div>
+        <div class="card-footer">
+          <span class="card-badge ${p.mode}">${p.mode}</span>
+          ${p.act ? '<span style="font-size:12px;color:var(--li-text-secondary)">' + escapeHtml(p.act) + '</span>' : ''}
+          ${p.date ? '<span style="font-size:12px;color:var(--li-text-secondary)">' + p.date + '</span>' : ''}
+        </div>
+        <div class="card-source">Source: ${escapeHtml(p.source || 'unknown')}</div>
+        <div class="card-actions">
+          <button class="action">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M19.462 3.994c-1.682-1.68-4.409-1.68-6.09 0L12 5.367l-1.372-1.373c-1.68-1.68-4.407-1.68-6.088 0-1.68 1.682-1.68 4.407 0 6.088L12 17.526l7.462-7.444c1.68-1.68 1.68-4.407 0-6.088z"/></svg>
+            Like
+          </button>
+          <button class="action">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M7 8.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5zm0 1c-2.21 0-4 1.79-4 4v6h8v-6c0-2.21-1.79-4-4-4zm11-1a2 2 0 100-4 2 2 0 000 4zm0 1c-1.84 0-3.34 1.46-3.34 3.25V17h6.68v-4.25C21.34 9.96 19.84 8.5 18 8.5z"/></svg>
+            Comment
+          </button>
+          <button class="action">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M19.5 3h-15A2.5 2.5 0 002 5.5v10A2.5 2.5 0 004.5 18H7v3.5L12.5 18h7a2.5 2.5 0 002.5-2.5v-10A2.5 2.5 0 0019.5 3z"/></svg>
+            Repost
+          </button>
+          <button class="action">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M21 3l-9.5 9.5L7 8l-4 4V3h18zM3 21h18v-2H3v2z"/></svg>
+            Send
+          </button>
+        </div>
+      </div>
+    `).join('');
+
+    document.getElementById('feed').insertAdjacentHTML('afterbegin',
+      `<div style="text-align:center;padding:8px;font-size:12px;color:var(--li-text-secondary)">
+        ${posts.length} sandboxed post${posts.length>1?'s':''} · Mode: <strong style="color:${mode==='sandbox'?'var(--badge-sandbox)':'var(--badge-live)'}">${mode.toUpperCase()}</strong>
+      </div>`);
+
+  } catch(e) {
+    feed.innerHTML = `<div class="empty"><h3>Error</h3><p>${e.message}</p></div>`;
+  }
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+loadPosts();
+setInterval(loadPosts, 15000);
+</script>
+</body>
+</html>

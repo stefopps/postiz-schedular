@@ -49,10 +49,10 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add posted-dates.json
+          git add posted-dates.json sandbox/*.json sandbox-mode.json 2>/dev/null; true
           if git diff --cached --quiet; then
-            echo "No changes to posted-dates.json"
+            echo "No changes"
           else
-            git commit -m "mark posted-date: $(date +'%a %b %d')"
+            git commit -m "post: $(date +'%a %b %d') [auto]"
             git push
           fi

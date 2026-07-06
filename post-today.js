@@ -172,6 +172,41 @@ async function main() {
   console.log(`[PostToday] Found: ${todayPost.date} — "${todayPost.act}"`);
   console.log(`[PostToday] Body length: ${todayPost.body.length} chars`);
 
+  // ── Sandbox mode check ──
+  const SANDBOX_MODE_FILE = path.join(__dirname, 'sandbox-mode.json');
+  let mode = 'live'; // default: live if file missing (backward compat)
+  try {
+    if (fs.existsSync(SANDBOX_MODE_FILE)) {
+      const modeData = JSON.parse(fs.readFileSync(SANDBOX_MODE_FILE, 'utf-8'));
+      mode = modeData.mode || 'live';
+    }
+  } catch (e) { /* fall through */ }
+
+  if (mode === 'sandbox') {
+    console.log(`[PostToday] SANDBOX MODE — saving locally, not posting to LinkedIn`);
+    const SANDBOX_DIR = path.join(__dirname, 'sandbox');
+    if (!fs.existsSync(SANDBOX_DIR)) fs.mkdirSync(SANDBOX_DIR, { recursive: true });
+
+    const slug = todayPost.act.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').substring(0, 40);
+    const filename = `${edtTodayStr.replace(/ /g, '-')}--${slug}.json`;
+    const entry = {
+      posted: new Date().toISOString(),
+      mode: 'sandbox',
+      platform: 'linkedin',
+      text: todayPost.body,
+      textLength: todayPost.body.length,
+      act: todayPost.act,
+      date: todayPost.date,
+      source: 'github-actions-7am',
+      preview: todayPost.body.substring(0, 150).replace(/\n/g, ' ')
+    };
+    fs.writeFileSync(path.join(SANDBOX_DIR, filename), JSON.stringify(entry, null, 2), 'utf-8');
+    console.log(`[PostToday] Sandboxed: ${filename}`);
+    markPosted(edtTodayStr);  // Still mark as handled so it doesn't re-fire
+    process.exit(0);
+  }
+
+  console.log(`[PostToday] LIVE MODE — posting to LinkedIn`);
   const result = await postToLinkedIn(todayPost.body);
   
   if (result.ok) {

@@ -185,8 +185,25 @@ async function runBackup() {
 
   console.log(`[Backup] Found: ${todayPost.date} — "${todayPost.act}"`);
 
-  // Step 3: Post
-  const result = await postToLinkedIn(todayPost.body);
+  // Step 3: Post through sandbox gate
+  let result;
+  try {
+    const sandboxLib = require('./sandbox-publisher');
+    if (!sandboxLib.isLive()) {
+      console.log(`[Backup] SANDBOX MODE — saving locally, not posting to LinkedIn`);
+      result = await sandboxLib.publishToSandbox(todayPost.body, {
+        act: todayPost.act,
+        date: todayPost.date,
+        source: 'state-server-backup-7:15am'
+      });
+    } else {
+      console.log(`[Backup] LIVE MODE — posting to LinkedIn`);
+      result = await postToLinkedIn(todayPost.body);
+    }
+  } catch (e) {
+    console.error(`[Backup] Error: ${e.message}`);
+    result = { ok: false, error: e.message };
+  }
 
   if (result.ok) {
     console.log(`[Backup] SUCCESS — posted "${todayPost.act}"`);
