@@ -1,0 +1,11 @@
+{
+  "posted": "2026-07-24T12:15:49.226Z",
+  "mode": "sandbox",
+  "platform": "linkedin",
+  "text": "I needed a first case. Something that tests whether the room actually works.\n\nYaw Boateng is 22. No medical history. She walks into the ER with abdominal pain, vomiting for two days, and she cannot stay awake. The point-of-care glucose reads north of 600.\n\nHer pancreas has stopped making insulin.\n\nIn DKA, the body turns to fat for fuel because glucose cannot enter the cells. The fat breaks down into ketones. The ketones make the blood acidic. The kidneys try to compensate but cannot keep up. The breathing gets deep and fast. The mucous membranes go dry. And the abdominal pain — classic DKA presentation — mimics an acute surgical abdomen so well that inexperienced clinicians order CT scans instead of insulin.\n\nI built this case as a timed room. The glucose is high. The anion gap is open. The potassium is borderline. And the clock is ticking.\n\nThe video below is the visual metaphor. A pancreas that should be pouring out insulin but produces nothing. You stroke it. You wait. Nothing comes out.\n\nBecause in DKA, the organ is present but silent.\n\nThis is the first case in the room. Real physiology. Real consequences. No textbook chapter.",
+  "textLength": 1149,
+  "act": "The Build: DKA",
+  "date": "Fri Jul 24",
+  "source": "github-actions-7am",
+  "preview": "I needed a first case. Something that tests whether the room actually works.  Yaw Boateng is 22. No medical history. She walks into the ER with abdomi"
+}
