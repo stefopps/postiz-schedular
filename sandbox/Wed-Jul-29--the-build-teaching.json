@@ -1,0 +1,11 @@
+{
+  "posted": "2026-07-29T12:57:40.565Z",
+  "mode": "sandbox",
+  "platform": "linkedin",
+  "text": "The AI attending does not just explain DKA. It explains Yaw Boateng’s DKA.\n\nHer glucose is 642. Her sodium is 134. Her potassium is 4.8. Her anion gap is 28.\n\nThe attending reads the numbers in front of you and teaches from there:\n\nFirst — fluids. She is profoundly dehydrated. Normal saline, wide open. The fluid alone will bring her glucose down before a single unit of insulin.\n\nThen — potassium. Check it before the insulin goes in, because insulin drives potassium into cells and if her K drops below 3.5 on the drip she could arrest. Her K is 4.8 now. That is safe. Start the insulin.\n\nThen — watch the anion gap. Do not watch the glucose. The glucose will normalize before the gap closes. If you stop the insulin when the glucose hits 200, the ketosis continues and she drifts back into acidosis. The gap is the true marker of resolution.\n\nThe attending does not lecture on DKA. It teaches the patient in front of you. The potassium of 4.8. The gap of 28. The decision to hold dextrose until she crosses 250.\n\nCaleb never taught from a manual. The AI attending never teaches from a textbook. It teaches from the numbers that are actually on your screen.\n\nAnd it remembers what you asked three minutes ago.",
+  "textLength": 1212,
+  "act": "The Build: Teaching",
+  "date": "Wed Jul 29",
+  "source": "github-actions-7am",
+  "preview": "The AI attending does not just explain DKA. It explains Yaw Boateng’s DKA.  Her glucose is 642. Her sodium is 134. Her potassium is 4.8. Her anion gap"
+}
