@@ -1,0 +1,11 @@
+{
+  "posted": "2026-08-03T13:35:05.266Z",
+  "mode": "sandbox",
+  "platform": "linkedin",
+  "text": "Here is what happens when you miss DKA.\n\nYou see abdominal pain. You order a CT abdomen with contrast. The patient waits. The glucose stays in the 600s. The ketones keep rising. The gap widens. By the time the CT comes back negative, she is four hours deeper into acidosis.\n\nOr you see the leukocytosis and start antibiotics. DKA causes leukocytosis from catecholamine release and dehydration — not infection. The white count does not mean sepsis. It means her body is stressed. You just bought an infectious workup for a metabolic problem.\n\nOr you give dextrose. Glucose is 600 but the protocol says D5 for all. And you watch the numbers climb.\n\nThe room does not stop you from making these calls. It lets you make them. And then it shows you what the physiology does in response.\n\nThat is the difference between a question bank and a sandbox. A question bank tells you you are wrong. A sandbox lets you watch the consequence unfold and live inside it long enough to feel it.\n\nThe first time I ran Yaw’s case and gave dextrose before checking potassium, I watched the ECG flatten on the monitor. I knew the physiology. But knowing it and watching it are not the same thing.\n\nThat is the room. Not safe in the way a textbook is safe. Safe in the way a simulator is safe. You feel the cost without paying it.",
+  "textLength": 1307,
+  "act": "The Build: What Wrong Looks Like",
+  "date": "Mon Aug 3",
+  "source": "github-actions-7am",
+  "preview": "Here is what happens when you miss DKA.  You see abdominal pain. You order a CT abdomen with contrast. The patient waits. The glucose stays in the 600"
+}
